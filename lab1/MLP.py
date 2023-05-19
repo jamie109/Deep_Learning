@@ -172,4 +172,4 @@ plt.title('validation loss')
 # 准确率
 plt.figure(figsize=(5,3))
 plt.plot(np.arange(1,epochs+1), accv)
-plt.title('validation accuracy');
+plt.title('validation accuracy')
