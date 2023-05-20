@@ -5,7 +5,12 @@
 """
 import torch
 import torch.nn as nn
-
+from resnet import train, validate
+import torchvision
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
+import numpy as np
+import torch.optim as optim
 
 class DenseLayer(nn.Module):
     """
@@ -127,4 +132,46 @@ def test():
     print(densenet)
 
 if __name__ == '__main__':
-    test()
+    # test()
+    transform = transforms.Compose(
+        [transforms.ToTensor(),
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    # 每次测试或小批量训练的样本数为 4
+    batch_size = 4
+
+    # 训练集
+    trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
+                                            download=True, transform=transform)
+    # shuffle=True表示在每个epoch训练之前对数据进行洗牌 num_workers=2表示使用2个子进程来加载数据
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
+                                              shuffle=True, num_workers=2)
+    # 测试集
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                           download=True, transform=transform)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+                                             shuffle=False, num_workers=2)
+
+    classes = ('plane', 'car', 'bird', 'cat',
+               'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+    densenet = DenseNet()
+
+    # 定义损失函数，交叉熵损失
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(densenet.parameters(), lr=0.001, momentum=0.9)
+
+    epochs = 10
+
+    lossv, accv = [], []
+    for epoch in range(1, epochs + 1):
+        train(epoch, densenet)
+        validate(lossv, accv, densenet)
+
+    # 损失
+    plt.figure(figsize=(5, 3))
+    plt.plot(np.arange(1, epochs + 1), lossv)
+    plt.title('validation loss')
+    # 准确率
+    plt.figure(figsize=(5, 3))
+    plt.plot(np.arange(1, epochs + 1), accv)
+    plt.title('validation accuracy')

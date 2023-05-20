@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch.optim as optim
 
+
 class Downsample(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(Downsample, self).__init__()
