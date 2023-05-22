@@ -78,6 +78,7 @@ class Bottle2neck(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
+        print(f"-----Bottle2neck after conv1 is {out.shape}")
         # 2、res2Net 模块
         #  tensor 的第 1 维度，(N, C, H, W) 中的 Channel，分成 w 组
         spx = torch.split(out, self.width, 1)
@@ -107,17 +108,18 @@ class Bottle2neck(nn.Module):
             out = torch.cat((out, spx[self.nums]), 1)
         elif self.scale != 1 and self.stype == 'stage':
             out = torch.cat((out, self.pool(spx[self.nums])), 1)
-
+        print(f"-----Bottle2neck after smallconv is {out.shape}")
         out = self.conv3(out)
         out = self.bn3(out)
+        print(f"-----Bottle2neck after conv3 is {out.shape}")
         # resnet 的 shortcut 分支跟主分支形状不同，需要下采样处理
-        # residual 和 x 是一个东西
+        # residual 和 x 相同
         if self.downsample is not None:
             residual = self.downsample(x)
 
         out += residual
         out = self.relu(out)
-
+        print(f"-----Bottle2neck after add is {out.shape}")
         return out
 
 
@@ -192,19 +194,26 @@ class Res2Net(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        print(f"Res2Net input x shape is {x.shape}")
         x = self.conv1(x)
         x = self.bn1(x)
+        print(f"Res2Net after conv1 is {x.shape}")
         x = self.relu(x)
         x = self.maxpool(x)
-
+        print(f"Res2Net after maxpool is {x.shape}")
         x = self.layer1(x)
+        print(f"Res2Net after layer1 is {x.shape}")
         x = self.layer2(x)
+        print(f"Res2Net after layer2 is {x.shape}")
         x = self.layer3(x)
+        print(f"Res2Net after layer3 is {x.shape}")
         x = self.layer4(x)
-
+        print(f"Res2Net after layer4 is {x.shape}")
         x = self.avgpool(x)
+        print(f"Res2Net after avg  is {x.shape}")
         # 一维
         x = x.view(x.size(0), -1)
+        print(f"Res2Net after 1D is {x.shape}")
         x = self.fc(x)
 
         return x
@@ -287,9 +296,16 @@ def res2net50_14w_8s(pretrained=False, **kwargs):
         model.load_state_dict(model_zoo.load_url(model_urls['res2net50_14w_8s']))
     return model
 
+def test():
+    model = Res2Net(Bottle2neck, [1, 1, 1, 1],baseWidth=26, scale=4,num_classes=10)
+    # 32x32 太小了
+    input = torch.randn(1, 3, 64, 64)
+    output = model(input)
+    print(output.shape)
 
 if __name__ == '__main__':
-    images = torch.rand(1, 3, 224, 224).cuda(0)
-    model = res2net101_26w_4s(pretrained=True)
-    model = model.cuda(0)
-    print(model(images).size())
+    test()
+    # images = torch.rand(1, 3, 224, 224).cuda(0)
+    # model = res2net101_26w_4s(pretrained=True)
+    # model = model.cuda(0)
+    # print(model(images).size())
