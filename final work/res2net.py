@@ -3,6 +3,7 @@ import math
 import torch.utils.model_zoo as model_zoo
 import torch
 import torch.nn.functional as F
+from data import get_data
 
 __all__ = ['Res2Net', 'res2net50']
 # 模型链接
@@ -306,6 +307,10 @@ def test():
 
 if __name__ == '__main__':
     test()
+    net = res2net50(True)
+    net = net.cuda(0)
+    trainloader, testloader, classes = get_data()
+
     # images = torch.rand(1, 3, 224, 224).cuda(0)
     # model = res2net101_26w_4s(pretrained=True)
     # model = model.cuda(0)

@@ -12,7 +12,7 @@ import numpy as np
 import torchvision
 import torch.optim as optim
 
-import data
+from data import get_data
 
 
 class Downsample(nn.Module):
@@ -96,12 +96,12 @@ class Bottle2neck(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu1(out)
-        print(f"-----Bottle2neck after conv1 is {out.shape}")
+        # print(f"-----Bottle2neck after conv1 is {out.shape}")
         # small convs
         # (N, C, H, W) 中的 Channel，分成 w 组
         spx = torch.split(tensor=out, split_size_or_sections=self.width, dim=1)
         #print(f"spx shape is {spx.shape}")
-        print(f"spx[0] shape is {spx[0].shape}")
+        # print(f"spx[0] shape is {spx[0].shape}")
 
         for i in range(self.conv_num):
             if i == 0:
@@ -114,7 +114,7 @@ class Bottle2neck(nn.Module):
             sp = self.convs[i](sp)
             sp = self.bns[i](sp)
             sp = self.relus[i](sp)
-            print(f"sp shape is {sp.shape}")
+            # print(f"sp shape is {sp.shape}")
             # 卷积过的 spx[0]
             if i == 0:
                 out = sp
@@ -123,20 +123,20 @@ class Bottle2neck(nn.Module):
         # 最后一块不处理 直接加到结果中
         if self.scale != 1:
             out = torch.cat(tensors=(out, spx[self.conv_num]), dim=1)
-        print(f"-----Bottle2neck after small convs is {out.shape}")
+        # print(f"-----Bottle2neck after small convs is {out.shape}")
         # print(self.convs)
         out = self.conv3(out)
         out = self.bn3(out)
-        print(f"-----Bottle2neck after conv3 is {out.shape}")
+        # print(f"-----Bottle2neck after conv3 is {out.shape}")
         # resnet 的 shortcut 分支跟主分支形状不同
         # 对原始输入 x 下采样
-        print(f"-----Bottle2neck the origin x is {x.shape}")
+        # print(f"-----Bottle2neck the origin x is {x.shape}")
         if self.downsample is not None:
             x = self.downsample(x)
-        print(f"-----Bottle2neck after ds x is {x.shape}")
+        # print(f"-----Bottle2neck after ds x is {x.shape}")
         out += x
         out = self.relu3(out)
-        print(f"-----Bottle2neck after add is {out.shape}")
+        # print(f"-----Bottle2neck after add is {out.shape}")
         return out
 
 
@@ -165,28 +165,28 @@ class Res2Net(nn.Module):
         self.fc1 = nn.Linear(16384, class_num)
 
     def forward(self, x):
-        print("Input shape:", x.shape)
+        # print("Input shape:", x.shape)
         x = self.conv1(x)
-        print("After conv1 shape:", x.shape)
+        # print("After conv1 shape:", x.shape)
         x = self.bn1(x)
         # print("After bn1 shape:", x.shape)
         x = self.relu1(x)
         # print("After relu shape:", x.shape)
         # x = self.maxpool(x)
         # print("After maxpool shape:", x.shape)
-        print("==========into res2net blocks==================")
+        # print("==========into res2net blocks==================")
         x = self.layer1(x)
-        print("After layer1 shape:", x.shape)
+        # print("After layer1 shape:", x.shape)
         x = self.layer2(x)
-        print("After layer2 shape:", x.shape)
+        # print("After layer2 shape:", x.shape)
         # x = self.layer3(x)
         # print("After layer3 shape:", x.shape)
         # x = self.layer4(x)
         # print("After layer4 shape:", x.shape)
         x = torch.flatten(x, 1)
-        print(f"After 1D is {x.shape}")
+        # print(f"After 1D is {x.shape}")
         x = self.fc1(x)
-        print(f"After fc1 is {x.shape}")
+        # print(f"After fc1 is {x.shape}")
         return x
 
 
@@ -211,11 +211,11 @@ if __name__ == '__main__':
     """
     下载cifar100数据集
     """
-    trainloader, testloader, classes = data.get_data()
+    trainloader, testloader, classes = get_data()
     """
     展示图片
     """
-    batch_size = 8
+    batch_size = 4
     # 在训练数据集上创建一个迭代器，用于逐个访问数据集中的样本
     dataiter = iter(trainloader)
     # 从迭代器中获取下一个元素，即包含图像和对应标签的小批量
