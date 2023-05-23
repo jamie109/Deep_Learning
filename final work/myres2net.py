@@ -7,6 +7,12 @@ import torch.nn as nn
 import torch
 import math
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+import numpy as np
+import torchvision
+import torch.optim as optim
+
+import data
 
 
 class Downsample(nn.Module):
@@ -135,7 +141,7 @@ class Bottle2neck(nn.Module):
 
 
 class Res2Net(nn.Module):
-    def __init__(self, baseWidth=26, scale=4, class_num=10):
+    def __init__(self, baseWidth=26, scale=4, class_num=100):
         """
         :param baseWIdth: 默认26
         :param scale: 尺度 s
@@ -156,7 +162,7 @@ class Res2Net(nn.Module):
         # self.layer3 = Bottle2neck(64, 64, 1, None, self.baseWidth, self.scale, True)
         # self.layer4 = Bottle2neck(64, 128, 1, None, self.baseWidth, self.scale, True)
 
-        self.fc1 = nn.Linear(16384, 10)
+        self.fc1 = nn.Linear(16384, class_num)
 
     def forward(self, x):
         print("Input shape:", x.shape)
@@ -186,13 +192,38 @@ class Res2Net(nn.Module):
 
 def test():
     input = torch.randn(1, 3, 32, 32)
-    resnet = Res2Net(26, 4, 10)
+    resnet = Res2Net(26, 4, 100)
     out = resnet(input)
     # res2block = Bottle2neck(64, 256, flag=True)
     # out = res2block(input)
     # print(res2block)
 
 
+def imshow(img):
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.show()
+
+
 if __name__ == '__main__':
-    test()
+    # test()
+    """
+    下载cifar100数据集
+    """
+    trainloader, testloader, classes = data.get_data()
+    """
+    展示图片
+    """
+    batch_size = 8
+    # 在训练数据集上创建一个迭代器，用于逐个访问数据集中的样本
+    dataiter = iter(trainloader)
+    # 从迭代器中获取下一个元素，即包含图像和对应标签的小批量
+    images, labels = next(dataiter)
+    # show images
+    # torchvision.utils.make_grid 函数用于将多个图像合并成一个网格，便于显示多张图像。
+    imshow(torchvision.utils.make_grid(images))
+    # print labels
+    print(' '.join(f'{classes[labels[j]]:5s}' for j in range(batch_size)))
+
 
