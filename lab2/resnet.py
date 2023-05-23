@@ -105,7 +105,6 @@ class ResNet(nn.Module):
         #
         #self.fc1 = nn.Linear(, num_classes)
         self.fc1 = nn.Linear(4096, 1000)
-        self.relu2 = nn.ReLU(inplace=True)
         self.fc2 = nn.Linear(1000, 100)
         self.relu3 = nn.ReLU(inplace=True)
         self.fc3 = nn.Linear(100, num_classes)

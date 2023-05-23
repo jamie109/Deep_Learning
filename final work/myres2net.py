@@ -91,6 +91,9 @@ class Bottle2neck(nn.Module):
         # small convs
         # (N, C, H, W) 中的 Channel，分成 w 组
         spx = torch.split(tensor=out, split_size_or_sections=self.width, dim=1)
+        #print(f"spx shape is {spx.shape}")
+        print(f"spx[0] shape is {spx[0].shape}")
+
         for i in range(self.conv_num):
             if i == 0:
                 sp = spx[0]
@@ -128,14 +131,53 @@ class Bottle2neck(nn.Module):
 
 
 class Res2Net(nn.Module):
-    pass
+    def __init__(self, baseWidth=26, scale=4, class_num=10):
+        """
+        :param baseWIdth: 默认26
+        :param scale: 尺度 s
+        :param class_num: 分类数量
+        """
+        super(Res2Net, self).__init__()
+        self.baseWidth = baseWidth
+        self.scale = scale  # 尺度s
+        # conv input_channel = 3 out 32
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        # Res2Net Blocks
+        self.layer1 = Bottle2neck(in_channel=32, out_channel=32, stride=1, baseWidth=self.baseWidth, scale=self.scale, flag=True)
+        self.layer2 = Bottle2neck(32, 64, 2, None, self.baseWidth, self.scale, True)
+        # self.layer3 = Bottle2neck(64, 64, )
+
+
+    def forward(self, x):
+        print("Input shape:", x.shape)
+        x = self.conv1(x)
+        print("After conv1 shape:", x.shape)
+        x = self.bn1(x)
+        # print("After bn1 shape:", x.shape)
+        x = self.relu1(x)
+        # print("After relu shape:", x.shape)
+        # x = self.maxpool(x)
+        # print("After maxpool shape:", x.shape)
+
+        x = self.layer1(x)
+        print("After layer1 shape:", x.shape)
+        x = self.layer2(x)
+        print("After layer2 shape:", x.shape)
+
+        return x
 
 
 def test():
-    input = torch.randn(1, 64, 64, 64)
-    res2block = Bottle2neck(64, 256, flag=True)
-    out = res2block(input)
-    print(res2block)
+    input = torch.randn(1, 3, 64, 64)
+    resnet = Res2Net(26, 4, 10)
+    out = resnet(input)
+    # res2block = Bottle2neck(64, 256, flag=True)
+    # out = res2block(input)
+    # print(res2block)
 
 
 if __name__ == '__main__':
