@@ -9,12 +9,27 @@ import math
 import torch.nn.functional as F
 
 
+class Downsample(nn.Module):
+    """
+    下采样
+    """
+    def __init__(self, in_channel, out_channel):
+        super(Downsample, self).__init__()
+        self.conv = nn.Conv2d(in_channel, out_channel, kernel_size=1, stride=1, padding=0)
+        self.bn = nn.BatchNorm2d(out_channel)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+
+
 class Bottle2neck(nn.Module):
     """
     Res2Net BasicBlock
     """
     def __init__(self, in_channel, out_channel, stride=1, downsample=None,
-                 baseWidth=26, scale=4):
+                 baseWidth=26, scale=4, flag=False):
         """
         :param in_channel: 输入通道数
         :param out_channel: 输出通道数
@@ -22,18 +37,23 @@ class Bottle2neck(nn.Module):
         :param downsample: 下采样函数，用于匹配维度（channel）
         :param baseWidth: 用来控制每个组中输入的 channel 数目，参照原始code，默认26
         :param scale: 维度，把上一层的输出分成多少组
+        :param flag: 是否需要下采样
         """
         super(Bottle2neck, self).__init__()
         # 有了 in_channel 和 scale 应该就可以控制 width 了，不明白原代码为什么要有这一行
         # in_channel ！= scale * width
         # in_channel 是第一次卷积的输入，要分块的应该是其输出，所以这里要确定 width 是为了控制 conv1 的输出通道
         width = int(math.floor(in_channel * (baseWidth / 64.0)))
-        self.downsample = downsample
+        self.downsample = None
         self.scale = scale
         self.width = width
         self.in_channel = in_channel
         self.out_channel = out_channel
         conv1_out_channel = width * self.scale
+        # 对 x 下采样，使 x 的输出 channel 与经过 small conv 的相同
+        self.flag = flag
+        if self.flag is True:
+            self.downsample = Downsample(in_channel, out_channel)
 
         # step1 1*1卷积
         self.conv1 = nn.Conv2d(in_channel, conv1_out_channel, kernel_size=1, bias=False)
@@ -59,7 +79,7 @@ class Bottle2neck(nn.Module):
 
         # step3 1*1 conv 进行信息融合
         self.conv3 = nn.Conv2d(conv1_out_channel, out_channel, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(conv1_out_channel)
+        self.bn3 = nn.BatchNorm2d(out_channel)
         self.relu3 = nn.ReLU(inplace=True)
 
     def forward(self, x):
@@ -91,15 +111,16 @@ class Bottle2neck(nn.Module):
         if self.scale != 1:
             out = torch.cat(tensors=(out, spx[self.conv_num]), dim=1)
         print(f"-----Bottle2neck after small convs is {out.shape}")
-        print(self.convs)
+        # print(self.convs)
         out = self.conv3(out)
         out = self.bn3(out)
         print(f"-----Bottle2neck after conv3 is {out.shape}")
         # resnet 的 shortcut 分支跟主分支形状不同
         # 对原始输入 x 下采样
+        print(f"-----Bottle2neck the origin x is {x.shape}")
         if self.downsample is not None:
-            x = self.downsample(self.in_channel, self.out_channel)
-
+            x = self.downsample(x)
+        print(f"-----Bottle2neck after ds x is {x.shape}")
         out += x
         out = self.relu3(out)
         print(f"-----Bottle2neck after add is {out.shape}")
@@ -112,8 +133,9 @@ class Res2Net(nn.Module):
 
 def test():
     input = torch.randn(1, 64, 64, 64)
-    res2block = Bottle2neck(64, 256)
+    res2block = Bottle2neck(64, 256, flag=True)
     out = res2block(input)
+    print(res2block)
 
 
 if __name__ == '__main__':
