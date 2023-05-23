@@ -99,6 +99,7 @@ class Bottle2neck(nn.Module):
             sp = self.relu(self.bns[i](sp))
             # 下面是输出部分，等循环结束 out 就是全部输出
             # 第一小块不卷积 或者 nums 为 1，输出就是没卷积过的 sp
+            # 更正：nums为1，输出就是对 conv1 的结果进行一个卷积
             if i == 0:
                 out = sp
             else:
