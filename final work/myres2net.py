@@ -13,9 +13,9 @@ class Downsample(nn.Module):
     """
     下采样
     """
-    def __init__(self, in_channel, out_channel):
+    def __init__(self, in_channel, out_channel, stride=1):
         super(Downsample, self).__init__()
-        self.conv = nn.Conv2d(in_channel, out_channel, kernel_size=1, stride=1, padding=0)
+        self.conv = nn.Conv2d(in_channel, out_channel, kernel_size=1, stride=stride, padding=0)
         self.bn = nn.BatchNorm2d(out_channel)
 
     def forward(self, x):
@@ -50,10 +50,12 @@ class Bottle2neck(nn.Module):
         self.in_channel = in_channel
         self.out_channel = out_channel
         conv1_out_channel = width * self.scale
+        # 步长不为1时，处理过的块跟未处理过的块不能直接相加。但对处理过的块上采样会有信息损失，对未处理块下采样，图像尺寸会越卷越小。
+        self.stride = stride
         # 对 x 下采样，使 x 的输出 channel 与经过 small conv 的相同
         self.flag = flag
         if self.flag is True:
-            self.downsample = Downsample(in_channel, out_channel)
+            self.downsample = Downsample(in_channel, out_channel, stride)
 
         # step1 1*1卷积
         self.conv1 = nn.Conv2d(in_channel, conv1_out_channel, kernel_size=1, bias=False)
@@ -76,7 +78,8 @@ class Bottle2neck(nn.Module):
         self.convs = nn.ModuleList(convs)
         self.bns = nn.ModuleList(bns)
         self.relus = nn.ModuleList(relus)
-
+        # if stride != 1:
+        #     conv3_out_C =
         # step3 1*1 conv 进行信息融合
         self.conv3 = nn.Conv2d(conv1_out_channel, out_channel, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_channel)
@@ -105,6 +108,7 @@ class Bottle2neck(nn.Module):
             sp = self.convs[i](sp)
             sp = self.bns[i](sp)
             sp = self.relus[i](sp)
+            print(f"sp shape is {sp.shape}")
             # 卷积过的 spx[0]
             if i == 0:
                 out = sp
@@ -148,9 +152,11 @@ class Res2Net(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         # Res2Net Blocks
         self.layer1 = Bottle2neck(in_channel=32, out_channel=32, stride=1, baseWidth=self.baseWidth, scale=self.scale, flag=True)
-        self.layer2 = Bottle2neck(32, 64, 2, None, self.baseWidth, self.scale, True)
-        # self.layer3 = Bottle2neck(64, 64, )
+        self.layer2 = Bottle2neck(32, 64, 1, None, self.baseWidth, self.scale, True)
+        # self.layer3 = Bottle2neck(64, 64, 1, None, self.baseWidth, self.scale, True)
+        # self.layer4 = Bottle2neck(64, 128, 1, None, self.baseWidth, self.scale, True)
 
+        self.fc1 = nn.Linear(16384, 10)
 
     def forward(self, x):
         print("Input shape:", x.shape)
@@ -162,17 +168,24 @@ class Res2Net(nn.Module):
         # print("After relu shape:", x.shape)
         # x = self.maxpool(x)
         # print("After maxpool shape:", x.shape)
-
+        print("==========into res2net blocks==================")
         x = self.layer1(x)
         print("After layer1 shape:", x.shape)
         x = self.layer2(x)
         print("After layer2 shape:", x.shape)
-
+        # x = self.layer3(x)
+        # print("After layer3 shape:", x.shape)
+        # x = self.layer4(x)
+        # print("After layer4 shape:", x.shape)
+        x = torch.flatten(x, 1)
+        print(f"After 1D is {x.shape}")
+        x = self.fc1(x)
+        print(f"After fc1 is {x.shape}")
         return x
 
 
 def test():
-    input = torch.randn(1, 3, 64, 64)
+    input = torch.randn(1, 3, 32, 32)
     resnet = Res2Net(26, 4, 10)
     out = resnet(input)
     # res2block = Bottle2neck(64, 256, flag=True)
