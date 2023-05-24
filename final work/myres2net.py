@@ -41,7 +41,7 @@ class Bottle2neck(nn.Module):
     """
     expansion = 4
     def __init__(self, in_channel, out_channel, stride=1, downsample=None,
-                 baseWidth=26, scale=4, flag=False):
+                 baseWidth=26, scale=4, stype='normal', flag=False):
         """
         :param in_channel: 输入通道数
         :param out_channel: 输出通道数
@@ -57,6 +57,7 @@ class Bottle2neck(nn.Module):
         width = int(math.floor(out_channel * (baseWidth / 64.0)))
         self.scale = scale
         self.width = width
+        self.stype = stype
         self.in_channel = in_channel
         self.out_channel = out_channel
         conv1_out_channel = width * self.scale
@@ -77,7 +78,8 @@ class Bottle2neck(nn.Module):
         # small conv 数目 conv_num = scale - 1 当s为1，conv_num也为1
         self.conv_num = 1 if self.scale == 1 else self.scale - 1
         # 池化 使主分支跟shortcut分支图像大小一致
-        self.pool = nn.AvgPool2d(kernel_size=3, stride=stride, padding=1)
+        if stype == 'stage':
+            self.pool = nn.AvgPool2d(kernel_size=3, stride=stride, padding=1)
         convs = []
         bns = []
         relus = []
@@ -100,6 +102,7 @@ class Bottle2neck(nn.Module):
         self.relu3 = nn.ReLU(inplace=True)
 
     def forward(self, x):
+        residual = x
         # 1*1 conv
         out = self.conv1(x)
         out = self.bn1(out)
@@ -114,12 +117,12 @@ class Bottle2neck(nn.Module):
             logger.debug(f"spx[0] shape is {spx[0].shape}")
 
         for i in range(self.conv_num):
-            #
-            if i == 0 or True:
+            if i == 0 or self.stype == 'stage':
                 sp = spx[i]
             else:
                 # i >= 1 sp 是上一小块 conv bn relu 的输出结果
                 # 把输出跟当前未处理小块加起来
+                # print(self.convs)
                 sp = sp + spx[i]
 
             sp = self.convs[i](sp)
@@ -129,7 +132,7 @@ class Bottle2neck(nn.Module):
             # 卷积过的 spx[0]
             if i == 0:
                 out = sp
-                logger.debug(f"=====out0 shape is {out.shape}")
+                logger.debug(f"=====out0 shape is {out.shape} style is {self.stype}")
             else:
                 logger.debug(f"add=====sp shape is {sp.shape}")
                 out = torch.cat(tensors=(out, sp), dim=1)
@@ -139,13 +142,14 @@ class Bottle2neck(nn.Module):
 
         if condition:
             logger.debug(f"self.scale is {self.scale}")
-        if self.scale != 1:
+        if self.scale != 1 and self.stype == 'normal':
             if condition:
                 logger.debug("wwwwwwwwwwwwwwww")
-            #out = torch.cat(tensors=(out, spx[self.conv_num]), dim=1)
+            out = torch.cat((out, spx[self.conv_num]), 1)
+        elif self.scale != 1 and self.stype == 'stage':
+            # out = torch.cat(tensors=(out, spx[self.conv_num]), dim=1)
             # stride=2 resnet shortcut分支和主分支图像大小不同了 须pool
             out = torch.cat((out, self.pool(spx[self.conv_num])), 1)
-
         if condition:
             logger.debug(f"-----Bottle2neck after small convs is {out.shape}")
         # print(self.convs)
@@ -158,10 +162,10 @@ class Bottle2neck(nn.Module):
         if condition:
             logger.debug(f"-----Bottle2neck the origin x is {x.shape}")
         if self.downsample is not None:
-            x = self.downsample(x)
+            residual = self.downsample(x)
         if condition:
             logger.debug(f"-----Bottle2neck after ds x is {x.shape}")
-        out += x
+        out += residual
         out = self.relu3(out)
         if condition:
             logger.debug(f"-----Bottle2neck after add is {out.shape}")
@@ -227,13 +231,15 @@ class Res2Net(nn.Module):
 
         layers = []
         layers.append(Bottle2neck(self.in_channel, out_channel, stride,
-                                  downsample, self.baseWidth, self.scale, True))
+                                  downsample, self.baseWidth, self.scale, stype='stage'))
         self.in_channel = out_channel * Bottle2neck.expansion
 
         for i in range(1, blocks):
             # 这里 self.inplanes = planes * block.expansion，无需下采样。
             # res2net的前一层输入跟输出可以直接相加作为后一层输入。
-            layers.append(Bottle2neck(self.in_channel, out_channel, stride, baseWidth=self.baseWidth, scale=self.scale))
+            # 这里不传stride！！！
+            layers.append(Bottle2neck(self.in_channel, out_channel,
+                                      baseWidth=self.baseWidth, scale=self.scale))
 
         return nn.Sequential(*layers)
 
@@ -259,10 +265,10 @@ class Res2Net(nn.Module):
             logger.debug(f"After layer2 shape: {x.shape}")
         x = self.layer3(x)
         if condition:
-            logger.debug("After layer3 shape:", x.shape)
+            logger.debug(f"After layer3 shape: {x.shape}")
         x = self.layer4(x)
         if condition:
-            logger.debug("After layer4 shape:", x.shape)
+            logger.debug(f"After layer4 shape: {x.shape}" )
         x = self.avgpool(x)
         if condition:
             logger.debug(f"Res2Net after avg  is {x.shape}")
@@ -277,7 +283,7 @@ class Res2Net(nn.Module):
 
 def test():
     input = torch.randn(1, 3, 64, 64)
-    resnet = Res2Net([3, 4, 6, 3])
+    resnet = Res2Net([3, 4, 23, 3])
     out = resnet(input)
     # res2block = Bottle2neck(64, 256, flag=True)
     # out = res2block(input)
