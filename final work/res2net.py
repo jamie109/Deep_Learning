@@ -87,6 +87,7 @@ class Bottle2neck(nn.Module):
         是最后一块没卷积。假如 s = 4，这个循环遍历的是 nums = s -1。0、1、2。
         0、1、2 都卷积过了，3 没卷积。出了循环再把 3 加进去。
         """
+        print(f"=========spx[0] shape is {spx[0].shape}")
         for i in range(self.nums):
             # i == 0 是 nums 为 1的情况，sp 就是前面输出的所有，不会发生累加情况
             # stype == ‘stage’模式 不用加上前一小块的输出结果。我应该不会用到它。复现的时候直接删掉这个参数？
@@ -103,12 +104,18 @@ class Bottle2neck(nn.Module):
             # 更正：nums为1，输出就是对 conv1 的结果进行一个卷积
             if i == 0:
                 out = sp
+                print(f"=====out0 shape is {out.shape}")
             else:
                 out = torch.cat((out, sp), 1)
         # 最后一块不处理 直接加到结果中
+        print(f"scale smalls out shape is {out.shape}")
+        print(f"spx[self.nums] out shape is {spx[self.nums].shape}")
         if self.scale != 1 and self.stype == 'normal':
+            # 没有执行
+            print("wwwwwwwwwww")
             out = torch.cat((out, spx[self.nums]), 1)
         elif self.scale != 1 and self.stype == 'stage':
+            print("sssssssssssssssstage")
             out = torch.cat((out, self.pool(spx[self.nums])), 1)
         print(f"-----Bottle2neck after smallconv is {out.shape}")
         out = self.conv3(out)
@@ -299,7 +306,7 @@ def res2net50_14w_8s(pretrained=False, **kwargs):
     return model
 
 def test():
-    model = Res2Net(Bottle2neck, [1, 1, 1, 1],baseWidth=26, scale=4,num_classes=10)
+    model = Res2Net(Bottle2neck, [3, 4, 6, 3], baseWidth=26, scale=4, num_classes=100)
     # 32x32 太小了
     input = torch.randn(1, 3, 64, 64)
     output = model(input)
@@ -307,9 +314,9 @@ def test():
 
 if __name__ == '__main__':
     test()
-    net = res2net50(True)
-    net = net.cuda(0)
-    trainloader, testloader, classes = get_data()
+    # net = res2net50()
+    # net = net.cuda(0)
+    # trainloader, testloader, classes = get_data()
 
     # images = torch.rand(1, 3, 224, 224).cuda(0)
     # model = res2net101_26w_4s(pretrained=True)
